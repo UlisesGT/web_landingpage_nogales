@@ -2,313 +2,283 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreReviewRequest;
+use App\Services\ReviewService;
+use App\Services\AuthService;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 
 class ReviewController extends Controller
 {
-    /**
-     * Obtiene todas las reseñas para mostrar en la página de inicio
-     */
-    public function getReviews()
+    protected ReviewService $reviewService;
+    protected AuthService $authService;
+
+    public function __construct(ReviewService $reviewService, AuthService $authService)
     {
-        // Simular reseñas de base de datos
-        $reviews = $this->getStoredReviews();
+        $this->reviewService = $reviewService;
+        $this->authService = $authService;
         
-        return response()->json([
-            'status' => 'success',
-            'reviews' => $reviews
-        ]);
+        // Aplicar middleware de autenticación para ciertas rutas
+        $this->middleware('auth:sanctum')->only(['store', 'checkEligibility']);
+        $this->middleware('throttle:10,1')->only(['store']); // Rate limiting para crear reseñas
     }
 
     /**
-     * Agrega una nueva reseña (solo usuarios autenticados con pedidos)
+     * Obtiene todas las reseñas aprobadas para mostrar públicamente.
      */
-    public function store(Request $request)
+    public function index(): JsonResponse
     {
-        $request->validate([
-            'rating' => 'required|integer|min:1|max:5',
-            'comment' => 'required|string|min:10|max:500'
-        ]);
-
-        // Simular verificación de usuario autenticado
-        $user = $this->getAuthenticatedUser($request);
-        
-        if (!$user) {
+        try {
+            $reviews = $this->reviewService->getApprovedReviews();
+            
             return response()->json([
-                'status' => 'error',
-                'message' => 'Debes estar logueado para dejar una reseña.'
-            ], 401);
-        }
-
-        // Verificar si el usuario ha hecho pedidos
-        if (!$this->userHasOrders($user['email'])) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Solo los clientes que han realizado pedidos pueden dejar reseñas.'
-            ], 403);
-        }
-
-        // Verificar si ya ha dejado una reseña
-        if ($this->userHasExistingReview($user['email'])) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Ya has dejado una reseña. Solo se permite una reseña por cliente.'
-            ], 403);
-        }
-
-        // Crear nueva reseña
-        $newReview = [
-            'id' => uniqid(),
-            'user_name' => $user['name'],
-            'user_email' => $user['email'],
-            'rating' => $request->input('rating'),
-            'comment' => $request->input('comment'),
-            'created_at' => now()->toISOString(),
-            'avatar_color' => $this->generateAvatarColor($user['name'])
-        ];
-
-        // Guardar reseña
-        $this->saveReview($newReview);
-        
-        Log::info("New review added by user: {$user['email']}");
-
-        return response()->json([
-            'status' => 'success',
-            'message' => '¡Gracias por tu reseña! Ha sido agregada exitosamente.',
-            'review' => $newReview
-        ]);
-    }
-
-    /**
-     * Verifica si el usuario puede dejar reseñas
-     */
-    public function checkEligibility(Request $request)
-    {
-        $user = $this->getAuthenticatedUser($request);
-        
-        if (!$user) {
-            return response()->json([
-                'status' => 'error',
-                'eligible' => false,
-                'message' => 'Debes estar logueado.'
-            ]);
-        }
-
-        $hasOrders = $this->userHasOrders($user['email']);
-        $hasExistingReview = $this->userHasExistingReview($user['email']);
-
-        return response()->json([
-            'status' => 'success',
-            'eligible' => $hasOrders && !$hasExistingReview,
-            'has_orders' => $hasOrders,
-            'has_existing_review' => $hasExistingReview,
-            'user' => $user
-        ]);
-    }
-
-    /**
-     * Simula la obtención del usuario autenticado
-     */
-    private function getAuthenticatedUser(Request $request)
-    {
-        // Simular usuario logueado usando session
-        $loggedInUser = session('logged_in_user');
-        
-        if (!$loggedInUser) {
-            return null;
-        }
-
-        return $loggedInUser;
-    }
-
-    /**
-     * Verifica si el usuario ha hecho pedidos
-     */
-    private function userHasOrders($email)
-    {
-        // Simular verificación de pedidos usando session/storage
-        $userOrders = session('user_orders', []);
-        
-        // Lista de emails que han hecho pedidos (para demo)
-        $usersWithOrders = [
-            'test@example.com',
-            'user@jaliscoflavors.com',
-            'admin@jaliscoflavors.com',
-            'demo@test.com'
-        ];
-        
-        return isset($userOrders[$email]) || in_array($email, $usersWithOrders);
-    }
-
-    /**
-     * Verifica si el usuario ya tiene una reseña
-     */
-    private function userHasExistingReview($email)
-    {
-        $reviews = $this->getStoredReviews();
-        
-        foreach ($reviews as $review) {
-            if ($review['user_email'] === $email) {
-                return true;
-            }
-        }
-        
-        return false;
-    }
-
-    /**
-     * Obtiene las reseñas almacenadas
-     */
-    private function getStoredReviews()
-    {
-        $reviews = session('customer_reviews', []);
-        
-        // Si no hay reseñas en session, usar reseñas por defecto
-        if (empty($reviews)) {
-            $reviews = [
-                [
-                    'id' => 'default_1',
-                    'user_name' => 'Isabella Rodriguez',
-                    'user_email' => 'isabella@example.com',
-                    'rating' => 5,
-                    'comment' => 'The birria tacos were absolutely incredible! The meat was so tender and flavorful, and the consommé was the perfect complement. I can\'t wait to come back and try more dishes.',
-                    'created_at' => now()->subWeeks(2)->toISOString(),
-                    'avatar_color' => 'orange'
-                ],
-                [
-                    'id' => 'default_2',
-                    'user_name' => 'Ethan Martinez',
-                    'user_email' => 'ethan@example.com',
-                    'rating' => 4,
-                    'comment' => 'I had the torta ahogada and it was a unique and delicious experience. The sauce had a great kick, and the sandwich was packed with flavor. I\'ll definitely be ordering it again.',
-                    'created_at' => now()->subMonth()->toISOString(),
-                    'avatar_color' => 'blue'
-                ],
-                [
-                    'id' => 'default_3',
-                    'user_name' => 'Sophia Garcia',
-                    'user_email' => 'sophia@example.com',
-                    'rating' => 5,
-                    'comment' => 'Casa Jalisco is my new favorite spot for authentic Mexican food. The carne asada was cooked to perfection, and the service was excellent. Highly recommend!',
-                    'created_at' => now()->subMonths(2)->toISOString(),
-                    'avatar_color' => 'green'
+                'status' => 'success',
+                'data' => [
+                    'reviews' => $reviews->map(function ($review) {
+                        return [
+                            'id' => $review->id,
+                            'user_name' => $review->user->name,
+                            'rating' => $review->rating,
+                            'comment' => $review->comment,
+                            'created_at' => $review->created_at->toISOString(),
+                            'formatted_date' => $review->formatted_date,
+                            'time_ago' => $review->time_ago,
+                            'avatar_color' => $review->avatar_color,
+                            'star_rating_html' => $review->star_rating_html
+                        ];
+                    }),
+                    'statistics' => $this->reviewService->getReviewsStatistics()
                 ]
-            ];
-            session(['customer_reviews' => $reviews]);
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error retrieving reviews: ' . $e->getMessage());
+            
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error al obtener las reseñas. Por favor, intenta nuevamente.'
+            ], 500);
         }
-        
-        // Ordenar por fecha de creación (más recientes primero)
-        usort($reviews, function($a, $b) {
-            return strtotime($b['created_at']) - strtotime($a['created_at']);
-        });
-        
-        return $reviews;
     }
 
     /**
-     * Guarda una nueva reseña
+     * Almacena una nueva reseña.
      */
-    private function saveReview($review)
+    public function store(StoreReviewRequest $request): JsonResponse
     {
-        $reviews = $this->getStoredReviews();
-        array_unshift($reviews, $review); // Agregar al principio
-        session(['customer_reviews' => $reviews]);
+        try {
+            $review = $this->reviewService->store($request);
+            
+            return response()->json([
+                'status' => 'success',
+                'message' => '¡Gracias por tu reseña! Ha sido enviada para revisión y será publicada una vez aprobada.',
+                'data' => [
+                    'review' => [
+                        'id' => $review->id,
+                        'user_name' => $review->user->name,
+                        'rating' => $review->rating,
+                        'comment' => $review->comment,
+                        'created_at' => $review->created_at->toISOString(),
+                        'is_approved' => $review->is_approved,
+                        'avatar_color' => $review->avatar_color
+                    ]
+                ]
+            ], 201);
+        } catch (\Exception $e) {
+            Log::error('Error storing review: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+                'request_data' => $request->validated()
+            ]);
+            
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error al guardar la reseña. Por favor, intenta nuevamente.'
+            ], 500);
+        }
     }
 
     /**
-     * Genera un color de avatar basado en el nombre
+     * Verifica si el usuario actual puede dejar una reseña.
      */
-    private function generateAvatarColor($name)
+    public function checkEligibility(): JsonResponse
     {
-        $colors = ['orange', 'blue', 'green', 'purple', 'red', 'yellow', 'indigo', 'pink'];
-        $index = strlen($name) % count($colors);
-        return $colors[$index];
+        try {
+            $user = $this->authService->getCurrentUser();
+            
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'eligible' => false,
+                    'message' => 'Debes iniciar sesión para dejar una reseña.'
+                ], 401);
+            }
+            
+            $eligibility = $this->reviewService->checkUserEligibility($user);
+            
+            return response()->json([
+                'status' => 'success',
+                'eligible' => $eligibility['eligible'],
+                'has_orders' => $eligibility['has_orders'],
+                'has_existing_review' => $eligibility['has_existing_review'],
+                'message' => $eligibility['message'],
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'avatar_color' => $user->avatar_color
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error checking review eligibility: ' . $e->getMessage(), [
+                'user_id' => auth()->id()
+            ]);
+            
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error al verificar elegibilidad. Por favor, intenta nuevamente.'
+            ], 500);
+        }
     }
 
     /**
-     * Simula agregar un pedido para un usuario (para testing)
+     * Obtiene estadísticas de reseñas.
      */
-    public function simulateOrder(Request $request)
+    public function statistics(): JsonResponse
+    {
+        try {
+            $statistics = $this->reviewService->getReviewsStatistics();
+            
+            return response()->json([
+                'status' => 'success',
+                'data' => $statistics
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error retrieving review statistics: ' . $e->getMessage());
+            
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error al obtener estadísticas. Por favor, intenta nuevamente.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtiene reseñas por calificación.
+     */
+    public function getByRating(Request $request): JsonResponse
     {
         $request->validate([
-            'user_email' => 'required|email'
+            'rating' => 'required|integer|min:1|max:5'
         ]);
 
-        $userOrders = session('user_orders', []);
-        $userOrders[$request->input('user_email')] = [
-            'order_id' => uniqid(),
-            'created_at' => now()->toISOString()
-        ];
-        session(['user_orders' => $userOrders]);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Pedido simulado agregado para el usuario.'
-        ]);
+        try {
+            $reviews = $this->reviewService->getReviewsByRating($request->rating);
+            
+            return response()->json([
+                'status' => 'success',
+                'data' => $reviews->map(function ($review) {
+                    return [
+                        'id' => $review->id,
+                        'user_name' => $review->user->name,
+                        'rating' => $review->rating,
+                        'comment' => $review->comment,
+                        'created_at' => $review->created_at->toISOString(),
+                        'formatted_date' => $review->formatted_date,
+                        'avatar_color' => $review->avatar_color
+                    ];
+                })
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error retrieving reviews by rating: ' . $e->getMessage());
+            
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error al obtener reseñas por calificación.'
+            ], 500);
+        }
     }
 
     /**
-     * Guarda la información del usuario en la sesión para el sistema de reseñas
+     * Obtiene reseñas recientes.
      */
-    public function saveUserSession(Request $request)
+    public function getRecent(Request $request): JsonResponse
     {
         $request->validate([
-            'email' => 'required|email',
-            'name' => 'required|string|max:255'
+            'days' => 'nullable|integer|min:1|max:365'
         ]);
 
-        $userData = [
-            'email' => $request->input('email'),
-            'name' => $request->input('name'),
-            'logged_in_at' => now()->toISOString()
-        ];
+        $days = $request->input('days', 30);
 
-        session(['logged_in_user' => $userData]);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Usuario registrado en sesión.'
-        ]);
+        try {
+            $reviews = $this->reviewService->getRecentReviews($days);
+            
+            return response()->json([
+                'status' => 'success',
+                'data' => $reviews->map(function ($review) {
+                    return [
+                        'id' => $review->id,
+                        'user_name' => $review->user->name,
+                        'rating' => $review->rating,
+                        'comment' => $review->comment,
+                        'created_at' => $review->created_at->toISOString(),
+                        'formatted_date' => $review->formatted_date,
+                        'avatar_color' => $review->avatar_color
+                    ];
+                })
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error retrieving recent reviews: ' . $e->getMessage());
+            
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error al obtener reseñas recientes.'
+            ], 500);
+        }
     }
 
     /**
-     * Simula completar un pedido y registrar al usuario como elegible para reseñas
+     * Métodos deprecados para compatibilidad con código existente.
+     * Estos métodos redirigen a la nueva implementación.
      */
-    public function completeOrder(Request $request)
+    
+    /**
+     * @deprecated Use index() instead
+     */
+    public function getReviews(): JsonResponse
     {
-        $request->validate([
-            'user_email' => 'required|email',
-            'user_name' => 'required|string',
-            'order_data' => 'required|array'
-        ]);
+        return $this->index();
+    }
 
-        $email = $request->input('user_email');
-        $name = $request->input('user_name');
-        $orderData = $request->input('order_data');
-
-        // Guardar usuario en sesión
-        $userData = [
-            'email' => $email,
-            'name' => $name,
-            'logged_in_at' => now()->toISOString()
-        ];
-        session(['logged_in_user' => $userData]);
-
-        // Registrar pedido
-        $userOrders = session('user_orders', []);
-        $userOrders[$email] = [
-            'order_id' => uniqid(),
-            'created_at' => now()->toISOString(),
-            'order_data' => $orderData
-        ];
-        session(['user_orders' => $userOrders]);
-
-        Log::info("Order completed for user: {$email}");
-
+    /**
+     * @deprecated Authentication should be handled by middleware
+     */
+    public function simulateOrder(Request $request): JsonResponse
+    {
         return response()->json([
-            'status' => 'success',
-            'message' => 'Pedido completado exitosamente. Ahora puedes dejar reseñas.'
-        ]);
+            'status' => 'error',
+            'message' => 'Esta funcionalidad ha sido desactivada. Usa el sistema de pedidos real.'
+        ], 410);
+    }
+
+    /**
+     * @deprecated Session-based authentication replaced with proper auth
+     */
+    public function saveUserSession(Request $request): JsonResponse
+    {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Esta funcionalidad ha sido desactivada. Usa el sistema de autenticación real.'
+        ], 410);
+    }
+
+    /**
+     * @deprecated Use proper order system
+     */
+    public function completeOrder(Request $request): JsonResponse
+    {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Esta funcionalidad ha sido desactivada. Usa el sistema de pedidos real.'
+        ], 410);
     }
 } 

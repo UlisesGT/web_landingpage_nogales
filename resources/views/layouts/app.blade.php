@@ -21,27 +21,34 @@
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
     
+    <!-- Preconnect para optimización de imágenes -->
+    <link rel="preconnect" href="https://images.unsplash.com">
+    <link rel="preconnect" href="https://cdn.pixabay.com">
+    
     <!-- Fonts preload para mejor rendimiento -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     
+    <!-- Preload de imagen crítica del hero -->
+    <link rel="preload" as="image" href="https://images.unsplash.com/1600x900/photo-1517248135467-4c7edcad34c4?ixlib=rb-4.0.3&q=80&w=1600&h=900&fit=crop" media="(min-width: 768px)">
+    <link rel="preload" as="image" href="https://images.unsplash.com/800x600/photo-1517248135467-4c7edcad34c4?ixlib=rb-4.0.3&q=80&w=800&h=600&fit=crop" media="(max-width: 767px)">
+    
+    <!-- Meta tags para optimización de imágenes -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://images.unsplash.com/1200x630/photo-1517248135467-4c7edcad34c4?ixlib=rb-4.0.3&q=85&w=1200&h=630&fit=crop">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:type" content="image/jpeg">
+    
     <!-- Estilos -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @vite(['resources/css/app.css', 'resources/js/main.tsx'])
     
     <!-- Styles adicionales -->
     @stack('styles')
 </head>
 <body class="font-body bg-crema-50 text-gray-800 antialiased">
-    <!-- Header -->
-    @include('components.header')
-    
-    <!-- Contenido principal -->
-    <main class="min-h-screen">
-        @yield('content')
-    </main>
-    
-    <!-- Footer -->
-    @include('components.footer')
+    <!-- React App Root -->
+    <div id="app"></div>
     
     <!-- Scripts adicionales -->
     @stack('scripts')

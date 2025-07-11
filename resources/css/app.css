@@ -1,6 +1,10 @@
-@import 'tailwindcss';
+/* Google Fonts - debe ir PRIMERO */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+/* Tailwind CSS */
+@import 'tailwindcss';
+
+/* Fuentes para Tailwind */
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
@@ -106,4 +110,194 @@ body {
     .desktop-menu {
         display: flex;
     }
+}
+
+/* Optimización de imágenes y estados de carga */
+
+/* Skeleton loading animation */
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Estados de carga para imágenes */
+.image-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.image-container.loading::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: #e5e7eb;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.image-container.error {
+  background-color: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-container.error::after {
+  content: '🖼️';
+  font-size: 2.25rem;
+  color: #9ca3af;
+}
+
+/* Transiciones suaves para imágenes */
+.optimized-image {
+  transition: all 0.5s ease-out;
+  transform: scale(1);
+}
+
+.optimized-image.loading {
+  opacity: 0;
+  transform: scale(1.05);
+}
+
+.optimized-image.loaded {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Blur-up effect para placeholders */
+.blur-placeholder {
+  filter: blur(4px);
+  transform: scale(1.1);
+  transition: opacity 0.3s;
+}
+
+/* Mejoras de performance para imágenes */
+.performance-image {
+  content-visibility: auto;
+  contain-intrinsic-size: 300px 200px;
+}
+
+/* Estados hover mejorados para cards con imágenes */
+.dish-card {
+  transition: all 0.3s ease-out;
+}
+
+.dish-card:hover {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  transform: translateY(-8px);
+}
+
+.dish-card:hover .optimized-image {
+  transform: scale(1.05);
+}
+
+/* Aspect ratios para imágenes responsive */
+.aspect-ratio-16-9 {
+  aspect-ratio: 16 / 9;
+}
+
+.aspect-ratio-4-3 {
+  aspect-ratio: 4 / 3;
+}
+
+.aspect-ratio-1-1 {
+  aspect-ratio: 1 / 1;
+}
+
+/* Loading spinner para imágenes */
+.image-spinner {
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #f97316;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: spin 1s linear infinite;
+}
+
+.image-spinner::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(249, 115, 22, 0.1);
+}
+
+/* Performance optimizations */
+.will-change-transform {
+  will-change: transform;
+}
+
+.will-change-opacity {
+  will-change: opacity;
+}
+
+.contain-layout {
+  contain: layout;
+}
+
+.contain-paint {
+  contain: paint;
+}
+
+.contain-size {
+  contain: size;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .mobile-optimized-image {
+    max-width: 100%;
+    height: auto;
+    object-fit: cover;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+  }
+  
+  .image-container.error {
+    background-color: #374151;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .optimized-image,
+  .dish-card,
+  .blur-placeholder,
+  .skeleton-shimmer {
+    animation: none;
+    transition: none;
+  }
+  
+  @keyframes shimmer {
+    0%, 100% {
+      background-position: 0 0;
+    }
+  }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .high-dpi-image {
+    image-rendering: -webkit-optimize-contrast;
+  }
 }
